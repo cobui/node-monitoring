@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "index.ts",
+    "collector.ts",
+    "config.ts",
+    "metric.ts",
+    "monitor.ts",
+    "monitoring.ts",
+    "registry.ts",
+    "sensor.ts",
+    "types.ts",
+    "warnings.ts",
+    "runtime/**/*.ts",
+    "transport/**/*.ts"
+  ]
+}
