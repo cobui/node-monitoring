@@ -1,0 +1,52 @@
+{
+  "name": "@cobui/node-monitoring",
+  "version": "1.0.0",
+  "description": "A lightweight monitoring library for Node.js",
+  "author": "Dennis Zerihun",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/**/*.js",
+    "dist/**/*.d.ts",
+    "dist/**/*.js.map",
+    "config.example.yml"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cobui/node-monitoring.git"
+  },
+  "keywords": [
+    "monitoring",
+    "metrics",
+    "influxdb",
+    "counter",
+    "gauge",
+    "histogram",
+    "nodejs"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
+    "docs": "typedoc"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.1",
+    "lru-cache": "^11.3.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^25.5.2",
+    "@vitest/coverage-v8": "^4.1.4",
+    "prettier": "^3.8.3",
+    "tsx": "^4.21.0",
+    "typedoc": "^0.28.18",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.3"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "entryPointStrategy": "expand",
+  "entryPoints": ["metric.ts", "types.ts", "registry.ts", "runtime", "sensors"],
+  "exclude": ["node_modules", "dist", "docs"],
+  "out": "docs",
+  "tsconfig": "./tsconfig.json",
+  "skipErrorChecking": true
+}

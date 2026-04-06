@@ -1,0 +1,155 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# node-monitoring — example configuration
+#
+# Bootstrap (once at startup):
+#
+#   import { Monitoring, loadConfig } from "node-monitoring";
+#
+#   const monitoring = new Monitoring();
+#   monitoring.add(loadConfig("monitoring.config.yml"));
+#   monitoring.start();
+#
+# Credentials and other secrets should never be committed to source control.
+# Use ${VAR_NAME} placeholders! `loadConfig` resolves them from process.env at
+# startup and throws immediately if a referenced variable is not set.
+# ──────────────────────────────────────────────────────────────────────────────
+
+# ── Primary application namespace - InfluxDB v2 (InfluxDB Cloud / OSS 2.x) ──
+- namespace: app
+  enabled: true
+
+  # Tags merged into every aggregate emitted by this namespace.
+  tags:
+    env: production
+    service: api-gateway
+
+  transporter:
+    type: influx
+    version: 2
+    key: influx # default: "influx". Namespaces sharing the same key share one
+                # queue and rate limit. Use a different key per transporter when
+                # you need independent queues (e.g. separate hosts or rate limits).
+    host: influxdb.example.com
+    port: 8086
+    protocol: https
+    org: my-org
+    bucket: app-metrics
+    token: "${INFLUX_TOKEN}"
+
+    # How many requests to send per second.
+    rateLimit: 20
+
+    # Controls the InfluxDB measurement name:
+    #   "uri"       : each metric URI is its own measurement (default).
+    #
+    #   "namespace" : all metrics share one measurement; URI becomes the `namespace` tag.
+    #                 The `namespace` tag can be added dynamically through a sensor invocation or defined via the configuration per metric
+    measurementStrategy: uri
+
+    retry:
+      retries: 3 # attempts after the initial send
+      minTimeout: 1000 # ms before the first retry
+      maxTimeout: 30000 # upper bound on backoff delay
+      factor: 2 # exponential multiplier (1s -> 2s -> 4s ... capped at 30s)
+
+    queue:
+      maxSize: 10000 # drop incoming items when the normal queue exceeds this
+      lossInterval: 300000 # ms between loss-record flushes (default: 5 min)
+      batchSize:
+        500 # aggregates per HTTP write request (default: 500)
+        # InfluxDB recommends 5_000 for raw event streams;
+
+  metrics:
+    - uri: http.requests
+      type: counter
+      interval: 10000 # collect every 10 s
+      reset: true # clear the counter after each collection
+      enabled: true
+
+    - uri: http.latency
+      type: histogram
+      interval: 10000
+      reset: true
+      enabled: true
+      # Exclude high-cardinality tags from the series cache key.
+      exclude:
+        - user_id
+
+    - uri: http.errors
+      type: counter
+      interval: 10000
+      reset: true
+      enabled: true
+
+    - uri: system.memory_mb
+      type: gauge
+      interval: 5000 # collect every 5 s
+      reset: false # gauges represent a current value — never reset
+      enabled: true
+
+    - uri: system.cpu_pct
+      type: gauge
+      interval: 5000
+      reset: false
+      enabled: true
+
+    - uri: db.query_latency
+      type: histogram
+      interval: 30000
+      reset: true
+      enabled: true
+      cache:
+        max: 200 # keep up to 200 distinct tag-value combinations
+
+# ── Infrastructure namespace — InfluxDB v1 (InfluxDB OSS 1.x) ────────────────
+- namespace: infra
+  enabled: false # start disabled; enable at runtime with setEnabled()
+
+  tags:
+    env: production
+    team: platform
+
+  transporter:
+    type: influx
+    version: 1
+    key: infra # different key → separate queue from the "app" namespace above
+    host: influx-legacy.internal
+    port: 8086
+    protocol: http
+    database: infrastructure
+    retentionPolicy: 90d # omit to use the database default
+    username: "monitor"
+    password: "${INFLUX_V1_PASSWORD}"
+
+    rateLimit: 5
+    measurementStrategy: namespace # all infra metrics -> one "infra" measurement
+
+    retry:
+      retries: 5
+      minTimeout: 2000
+      maxTimeout: 60000
+      factor: 2
+
+    queue:
+      maxSize: 2000
+      lossInterval: 600000 # 10 min -> less critical, flush less often
+      batchSize: 500
+
+  metrics:
+    - uri: k8s.pod_restarts
+      type: counter
+      interval: 60000
+      reset: true
+      enabled: true
+
+    - uri: k8s.pod_memory_mb
+      type: gauge
+      interval: 30000
+      reset: false
+      enabled: true
+
+    - uri: k8s.node_cpu_pct
+      type: gauge
+      interval: 30000
+      reset: false
+      enabled: true
