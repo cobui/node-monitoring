@@ -1,6 +1,6 @@
 {
   "name": "@cobui/node-monitoring",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A lightweight monitoring library for Node.js",
   "author": "Dennis Zerihun",
   "license": "MIT",
