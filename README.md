@@ -32,7 +32,7 @@ await monitoring.flush();
 monitoring.destroy();
 ```
 
-See `config.example.yml` for a full annotated config file.
+See [`config.example.yml`](config.example.yml) for a full annotated config file.
 
 ---
 
