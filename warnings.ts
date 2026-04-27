@@ -56,7 +56,7 @@ class WarningEmitter extends EventEmitter {
  *
  * @example
  * ```ts
- * import { warnings } from "node-monitoring";
+ * import { warnings } from "@cobui/node-monitoring";
  *
  * // Route to your own logger
  * warnings.on("sensor:inactive", ({ uri, namespace }) => {

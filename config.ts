@@ -41,7 +41,7 @@ function interpolateEnv(value: unknown): unknown {
  *
  * @example
  * ```ts
- * import { Monitoring, loadConfig } from "node-monitoring";
+ * import { Monitoring, loadConfig } from "@cobui/node-monitoring";
  *
  * const monitoring = new Monitoring();
  * monitoring.add(loadConfig("monitoring.config.yml"));

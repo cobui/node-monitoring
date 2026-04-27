@@ -3,7 +3,7 @@
 #
 # Bootstrap (once at startup):
 #
-#   import { Monitoring, loadConfig } from "node-monitoring";
+#   import { Monitoring, loadConfig } from "@cobui/node-monitoring";
 #
 #   const monitoring = new Monitoring();
 #   monitoring.add(loadConfig("monitoring.config.yml"));
@@ -26,9 +26,7 @@
   transporter:
     type: influx
     version: 2
-    key: influx # default: "influx". Namespaces sharing the same key share one
-                # queue and rate limit. Use a different key per transporter when
-                # you need independent queues (e.g. separate hosts or rate limits).
+    key: influx # default: "influx". Namespaces sharing the same key share one queue and rate limit. Use a different key per transporter when you need independent queues (e.g. separate hosts or rate limits).
     host: influxdb.example.com
     port: 8086
     protocol: https

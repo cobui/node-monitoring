@@ -9,7 +9,7 @@ Lightweight monitoring for Node.js. Define metrics in YAML, drop sensors in your
 Parse your config file and pass it directly to `monitoring.add()`
 
 ```ts
-import { Monitoring, loadConfig, Counter, Gauge, Histogram } from "node-monitoring";
+import { Monitoring, loadConfig, Counter, Gauge, Histogram } from "@cobui/node-monitoring";
 
 const config = loadConfig("monitoring.yml") as any;
 const monitoring = new Monitoring();
@@ -41,7 +41,7 @@ See `config.example.yml` for a full annotated config file.
 Sensors are the primary recording API.
 
 ```ts
-import { Counter, Gauge, Histogram } from "node-monitoring";
+import { Counter, Gauge, Histogram } from "@cobui/node-monitoring";
 
 const hits = Counter.create("http.requests", "app");
 const memory = Gauge.create("process.mem", "app");
@@ -216,7 +216,7 @@ No setup required. On worker processes, aggregates are forwarded to the primary 
 Sensors emit a typed warning event the first time an issue is detected. By default warnings fall through to `console.warn`. Subscribe to any category to route them to your own logger or suppress them entirely:
 
 ```ts
-import { warnings } from "node-monitoring";
+import { warnings } from "@cobui/node-monitoring";
 
 warnings.on("sensor:inactive", ({ uri, namespace }) => {
   /* namespace not started */
