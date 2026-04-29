@@ -48,9 +48,20 @@ beforeEach(() => {
 // ─── Line Protocol — "uri" strategy ──────────────────────────────────────────
 
 describe('Influx line protocol — "uri" strategy', () => {
-  it("uses the uri tag as measurement name and keeps namespace as a tag", async () => {
+  it("uses the uri tag as measurement name and strips namespace tag by default", async () => {
     const { Influx } = await import("../transport/influx.js");
     const influx = new Influx({ version: 2, host: "h", org: "o", bucket: "b", token: "t" });
+    await influx.send([makeAggregate({ uri: "requests", namespace: "app", route: "/api" }, 42)]);
+    const lp = requests[0].body;
+    expect(lp).toMatch(/^requests,/);
+    expect(lp).not.toContain("namespace=");
+    expect(lp).toContain("route=/api");
+    expect(lp).not.toContain("uri=");
+  });
+
+  it("keeps namespace as a tag when includeNamespaceTag is true", async () => {
+    const { Influx } = await import("../transport/influx.js");
+    const influx = new Influx({ version: 2, host: "h", org: "o", bucket: "b", token: "t", includeNamespaceTag: true });
     await influx.send([makeAggregate({ uri: "requests", namespace: "app", route: "/api" }, 42)]);
     const lp = requests[0].body;
     expect(lp).toMatch(/^requests,/);
@@ -354,7 +365,7 @@ describe("Influx gzip compression", () => {
     await influx.send([makeAggregate({ uri: "x", namespace: "app" }, 1)]);
     const { options, body } = requests[0];
     expect((options.headers as Record<string, string>)["Content-Encoding"]).toBe("gzip");
-    expect(body).toMatch(/^x,/); // mock auto-decompresses — confirms round-trip is valid
+    expect(body).toMatch(/^x[ ,]/); // mock auto-decompresses — confirms round-trip is valid
   });
 
   it("omits Content-Encoding header and sends plain text when gzip: false", async () => {
@@ -370,7 +381,7 @@ describe("Influx gzip compression", () => {
     await influx.send([makeAggregate({ uri: "x", namespace: "app" }, 1)]);
     const { options, body } = requests[0];
     expect((options.headers as Record<string, string>)["Content-Encoding"]).toBeUndefined();
-    expect(body).toMatch(/^x,/);
+    expect(body).toMatch(/^x[ ,]/);
   });
 });
 

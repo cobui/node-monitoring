@@ -26,36 +26,43 @@
   transporter:
     type: influx
     version: 2
-    key: influx # default: "influx". Namespaces sharing the same key share one queue and rate limit. Use a different key per transporter when you need independent queues (e.g. separate hosts or rate limits).
+    # default: "influx". Namespaces sharing the same key share one
+    # queue and rate limit. Use a different key per transporter when
+    # you need independent queues (e.g. separate hosts or rate limits).
+    key: influx
     host: influxdb.example.com
-    port: 8086
-    protocol: https
+    port: 8086 # default: 8086
+    protocol: https # default: https (v2), http (v1)
     org: my-org
     bucket: app-metrics
     token: "${INFLUX_TOKEN}"
 
-    # How many requests to send per second.
-    rateLimit: 20
+    rateLimit: 20 # requests per second (default: 10)
+    gzip: true # compress payloads (default: true)
 
     # Controls the InfluxDB measurement name:
-    #   "uri"       : each metric URI is its own measurement (default).
-    #
-    #   "namespace" : all metrics share one measurement; URI becomes the `namespace` tag.
-    #                 The `namespace` tag can be added dynamically through a sensor invocation or defined via the configuration per metric
+    #   "uri"       : each metric URI becomes its own measurement (default).
+    #   "namespace" : all metrics share one measurement named after the namespace;
+    #                 the metric URI is kept as a "uri" tag for filtering.
     measurementStrategy: uri
 
+    # When true, stamps a "namespace" tag on every data point written to InfluxDB.
+    # Useful when using measurementStrategy: "uri" with multiple namespaces on one
+    # transporter — lets you filter by namespace without it being the measurement name.
+    # Has no effect with measurementStrategy: "namespace" (namespace is the measurement).
+    # default: false
+    includeNamespaceTag: false
+
     retry:
-      retries: 3 # attempts after the initial send
-      minTimeout: 1000 # ms before the first retry
-      maxTimeout: 30000 # upper bound on backoff delay
-      factor: 2 # exponential multiplier (1s -> 2s -> 4s ... capped at 30s)
+      retries: 3 # attempts after the initial send (default: 3)
+      minTimeout: 1000 # ms before the first retry (default: 1000)
+      maxTimeout: 30000 # upper bound on backoff delay (default: 30000)
+      factor: 2 # exponential multiplier: 1s → 2s → 4s … capped at 30s (default: 2)
 
     queue:
-      maxSize: 10000 # drop incoming items when the normal queue exceeds this
-      lossInterval: 300000 # ms between loss-record flushes (default: 5 min)
-      batchSize:
-        500 # aggregates per HTTP write request (default: 500)
-        # InfluxDB recommends 5_000 for raw event streams;
+      maxSize: 10000 # drop incoming items when the normal queue exceeds this (default: unlimited)
+      lossInterval: 300000 # ms between loss-record flushes (default: 300000 — 5 min)
+      batchSize: 500 # aggregates per HTTP write request (default: 500)
 
   metrics:
     - uri: http.requests
@@ -151,3 +158,11 @@
       interval: 30000
       reset: false
       enabled: true
+
+# ── Example: sharing a transporter across namespaces ─────────────────────────
+# When two namespaces write to the same backend, define the full transporter
+# config once (e.g. on "app" above) and reference it by key here.
+# The referenced key must be defined before this entry in the array.
+# - namespace: debug
+#   transporter:
+#     key: influx   # reuses the "app" queue — no duplicate config needed

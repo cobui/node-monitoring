@@ -15,6 +15,7 @@ vi.mock("../transport/listener", () => ({
 
 vi.mock("../transport/factory", () => ({
   createTransporter: vi.fn(),
+  isTransporterRef: vi.fn().mockReturnValue(false),
 }));
 
 // ─── Imports ──────────────────────────────────────────────────────────────────
@@ -256,7 +257,6 @@ describe("Tag merging", () => {
       {
         namespace: "app",
         tags: { env: "test" },
-        includeNamespaceTag: true,
         transporter: TRANSPORTER_CONFIG,
         metrics: [{ uri: "hits", type: "counter", interval: 1000, tags: { service: "api" } }],
       },
@@ -279,7 +279,6 @@ describe("Tag merging", () => {
     monitoring.add([
       {
         namespace: "myns",
-        includeNamespaceTag: true,
         transporter: TRANSPORTER_CONFIG,
         metrics: [{ uri: "some.metric", type: "counter", interval: 1000 }],
       },

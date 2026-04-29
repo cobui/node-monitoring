@@ -61,6 +61,14 @@ export type InfluxConfig = (InfluxV1Config | InfluxV2Config) & {
    * ```
    */
   measurementStrategy?: "uri" | "namespace";
+  /**
+   * When `true`, a `namespace` tag is included on every data point sent to InfluxDB.
+   * Defaults to `false`. Useful when using `measurementStrategy: "uri"` with multiple
+   * namespaces sharing the same transporter — lets you filter by namespace in InfluxDB
+   * without it being the measurement name. Has no effect with `measurementStrategy: "namespace"`
+   * since the namespace is already consumed as the measurement name.
+   */
+  includeNamespaceTag?: boolean;
   retry?: RetryConfig;
   queue?: QueueConfig;
 };
@@ -117,6 +125,7 @@ export class Influx extends Transporter {
   private readonly protocol: "http" | "https";
   private readonly requestOptions: http.RequestOptions;
   private readonly gzip: boolean;
+  private readonly includeNamespaceTag: boolean;
 
   constructor(private readonly config: InfluxConfig) {
     super();
@@ -126,6 +135,7 @@ export class Influx extends Transporter {
     this.queue = config.queue ?? {};
     this.strategy = config.measurementStrategy ?? "uri";
     this.gzip = config.gzip ?? true;
+    this.includeNamespaceTag = config.includeNamespaceTag ?? false;
     this.protocol = config.protocol ?? (config.version === 2 ? "https" : "http");
     this.requestOptions = this.buildRequestOptions();
   }
@@ -148,6 +158,7 @@ export class Influx extends Transporter {
     } else {
       measurement = escapeName(String(tags.uri ?? "metrics"));
       delete tags.uri;
+      if (!this.includeNamespaceTag) delete tags.namespace;
     }
 
     const tagStr = this.formatTags(tags);

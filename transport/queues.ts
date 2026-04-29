@@ -15,6 +15,22 @@ export function acquireQueue(transporter: Transporter): TransportQueue {
   return queue;
 }
 
+/**
+ * Acquires an existing queue by key reference. Throws if the key has not been
+ * registered yet — the full transporter config must appear before any refs to it.
+ */
+export function acquireQueueByRef(key: string): TransportQueue {
+  const queue = queues.get(key);
+  if (!queue) {
+    throw new Error(
+      `[node-monitoring] Transporter ref "${key}" used before it was defined. ` +
+        `Ensure the namespace with the full transporter config appears first in monitoring.add([...]).`,
+    );
+  }
+  refCounts.set(key, refCounts.get(key)! + 1);
+  return queue;
+}
+
 export function releaseQueue(key: string): void {
   const count = refCounts.get(key);
   if (count === undefined) return;

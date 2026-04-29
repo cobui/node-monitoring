@@ -23,6 +23,7 @@ vi.mock("../transport/factory", () => ({
     queue: {},
     send: vi.fn().mockResolvedValue(undefined),
   })),
+  isTransporterRef: vi.fn().mockReturnValue(false),
 }));
 
 vi.mock("../transport/listener", () => ({

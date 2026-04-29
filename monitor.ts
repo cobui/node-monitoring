@@ -2,11 +2,11 @@ import cluster from "node:cluster";
 import { Registry } from "./registry";
 import { Recorder } from "./runtime/recorder";
 import { Collector } from "./collector";
-import { acquireQueue, releaseQueue } from "./transport/queues";
+import { acquireQueue, acquireQueueByRef, releaseQueue } from "./transport/queues";
 import { TransportQueue } from "./transport/queue";
 import { WorkerSender } from "./transport/sender";
 import { activateListener, deactivateListener } from "./transport/listener";
-import { createTransporter } from "./transport/factory";
+import { createTransporter, isTransporterRef } from "./transport/factory";
 import { activateContext, deactivateContext, destroyContext } from "./runtime/context";
 import type { Transporter } from "./transport/base";
 import type { TransporterConfig } from "./transport/factory";
@@ -31,13 +31,6 @@ export type MonitorConfig = {
    * later via {@link Monitoring#setEnabled}.
    */
   enabled?: boolean;
-  /**
-   * When `true`, a `namespace` tag is stamped on every emitted aggregate.
-   * Defaults to `false`. Enable this only when using `measurementStrategy: "uri"`
-   * with multiple namespaces sharing the same transporter — it lets you filter
-   * by namespace in InfluxDB without it being the measurement name.
-   */
-  includeNamespaceTag?: boolean;
 };
 
 /**
@@ -67,14 +60,21 @@ export class Monitor {
   private readonly collector: Collector;
   private readonly sink: AggregateSink;
 
-  constructor({ namespace, tags = {}, metrics = [], transporter: transporterConfig, includeNamespaceTag = false }: MonitorConfig) {
+  constructor({ namespace, tags = {}, metrics = [], transporter: transporterConfig }: MonitorConfig) {
     this.namespace = namespace;
-    this.transporter = createTransporter(transporterConfig);
+
+    if (isTransporterRef(transporterConfig)) {
+      this.transporter = { key: transporterConfig.key } as Transporter;
+      this.sink = cluster.isWorker ? new WorkerSender(transporterConfig.key) : acquireQueueByRef(transporterConfig.key);
+    } else {
+      this.transporter = createTransporter(transporterConfig);
+      this.sink = cluster.isWorker ? new WorkerSender(this.transporter.key) : acquireQueue(this.transporter);
+    }
+
     this.registry = new Registry(namespace);
     this.recorder = new Recorder();
-    this.sink = cluster.isWorker ? new WorkerSender(this.transporter.key) : acquireQueue(this.transporter);
     if (metrics.length) this.registry.register(metrics);
-    this.collector = new Collector({ namespace, ...tags }, this.registry, this.sink, includeNamespaceTag);
+    this.collector = new Collector({ namespace, ...tags }, this.registry, this.sink);
   }
 
   /**

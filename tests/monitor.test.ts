@@ -23,6 +23,7 @@ vi.mock("../transport/factory", () => ({
     queue: {},
     send: vi.fn(),
   })),
+  isTransporterRef: vi.fn().mockReturnValue(false),
 }));
 
 import { activateContext, deactivateContext, destroyContext } from "../runtime/context";

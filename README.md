@@ -192,16 +192,35 @@ transporter:
 
 By default the `namespace` value is **not** added as a tag on every data point. For most setups this is the right choice — with `measurementStrategy: namespace` the namespace is already the measurement name, and with `measurementStrategy: uri` and a single namespace it would just be a constant on every row.
 
-Set `includeNamespaceTag: true` on a namespace config when you use `measurementStrategy: uri` **and** have multiple namespaces writing to the same transporter. This lets you filter by namespace in InfluxDB without it being the measurement name.
+Set `includeNamespaceTag: true` on the **transporter config** when you use `measurementStrategy: uri` with multiple namespaces sharing the same transporter. This lets you filter by namespace in InfluxDB without it being the measurement name.
 
 ```yaml
 - namespace: app
-  includeNamespaceTag: true   # stamps namespace: "app" on every aggregate
   transporter:
     type: influx
     measurementStrategy: uri
+    includeNamespaceTag: true   # stamps namespace: "app" on every aggregate
     ...
 ```
+
+### Sharing a transporter across namespaces
+
+When multiple namespaces write to the same InfluxDB instance, define the full transporter config once and reference it by key in subsequent namespaces:
+
+```yaml
+- namespace: app
+  transporter:
+    type: influx
+    key: influx          # full config defined here
+    host: influxdb.example.com
+    ...
+
+- namespace: debug
+  transporter:
+    key: influx          # reuses the queue defined above — no duplicate config
+```
+
+The second namespace reuses the same rate-limited queue. The referenced key must appear before the ref in the config array.
 
 ---
 

@@ -3,18 +3,16 @@ import type { AggregateSink, Tags } from "./types";
 
 export class Collector {
   private readonly namespaceTags: Tags;
-  private readonly includeNamespaceTag: boolean;
   private readonly registry: Registry;
   private readonly sink: AggregateSink;
   private readonly timers = new Map<number, NodeJS.Timeout>();
   private readonly intervalGroups = new Map<number, Set<string>>();
   private isRunning = false;
 
-  constructor(namespaceTags: Tags, registry: Registry, sink: AggregateSink, includeNamespaceTag = true) {
+  constructor(namespaceTags: Tags, registry: Registry, sink: AggregateSink) {
     this.registry = registry;
     this.sink = sink;
     this.namespaceTags = namespaceTags;
-    this.includeNamespaceTag = includeNamespaceTag;
 
     for (const { uri, interval } of this.registry.values()) {
       if (!this.intervalGroups.has(interval)) {
@@ -100,7 +98,6 @@ export class Collector {
 
       for (const aggregate of aggregates) {
         const merged: Tags & { uri: string } = { ...this.namespaceTags, ...aggregate.tags, uri };
-        if (!this.includeNamespaceTag) delete merged.namespace;
         this.sink.enqueue({
           ...aggregate,
           tags: Object.fromEntries(Object.entries(merged).sort(([a], [b]) => a.localeCompare(b))),
