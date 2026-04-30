@@ -1,5 +1,4 @@
 import { Registry } from "../registry";
-import { Recorder } from "./recorder";
 import { Context } from "../types";
 
 const context = new Map<string, Context>();
@@ -23,10 +22,9 @@ export function getContext(namespace: string): Context {
   return ctx;
 }
 
-export function activateContext(namespace: string, registry: Registry, recorder: Recorder): void {
+export function activateContext(namespace: string, registry: Registry): void {
   const ctx = getContext(namespace);
   ctx.registry = registry;
-  ctx.recorder = recorder;
   ctx.version++;
   ctx.active = true;
 }
@@ -36,7 +34,6 @@ export function deactivateContext(namespace: string, clearReferences: boolean): 
   ctx.active = false;
   if (clearReferences) {
     ctx.registry = undefined;
-    ctx.recorder = undefined;
   }
   ctx.version++;
 }

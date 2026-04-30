@@ -52,7 +52,7 @@ describe("Monitoring.add", () => {
   it("auto-starts the monitor when enabled is true (default)", () => {
     const monitoring = new Monitoring();
     monitoring.add([makeConfig("app")]);
-    expect(activateContext).toHaveBeenCalledWith("app", expect.anything(), expect.anything());
+    expect(activateContext).toHaveBeenCalledWith("app", expect.anything());
     monitoring.destroy();
   });
 
@@ -66,8 +66,8 @@ describe("Monitoring.add", () => {
   it("registers all configs when given an array", () => {
     const monitoring = new Monitoring();
     monitoring.add([makeConfig("app"), makeConfig("auth", false)]);
-    expect(activateContext).toHaveBeenCalledWith("app", expect.anything(), expect.anything());
-    expect(activateContext).not.toHaveBeenCalledWith("auth", expect.anything(), expect.anything());
+    expect(activateContext).toHaveBeenCalledWith("app", expect.anything());
+    expect(activateContext).not.toHaveBeenCalledWith("auth", expect.anything());
     monitoring.destroy();
   });
 });

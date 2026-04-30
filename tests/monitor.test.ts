@@ -50,12 +50,12 @@ describe("Monitor.start", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  it("activates the context with the correct namespace, registry, and recorder", () => {
+  it("activates the context with the correct namespace and registry", () => {
     const monitor = new Monitor(makeConfig({ namespace: "myapp" }));
     monitor.start();
 
     expect(activateContext).toHaveBeenCalledOnce();
-    expect(activateContext).toHaveBeenCalledWith("myapp", expect.anything(), expect.anything());
+    expect(activateContext).toHaveBeenCalledWith("myapp", expect.anything());
     monitor.destroy();
   });
 

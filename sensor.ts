@@ -1,5 +1,4 @@
 import { MetricRef } from "./types";
-import { Recorder } from "./runtime/recorder";
 import { getContext, getActiveNamespaces } from "./runtime/context";
 import { emitWarning } from "./warnings";
 import type { Tags } from "./types";
@@ -92,7 +91,7 @@ export class SensorBase {
 
   protected withMetric<TType extends MetricRef["type"]>(
     type: TType,
-    fn: (metric: Extract<MetricRef, { type: TType }>, recorder: Recorder) => void,
+    fn: (ref: Extract<MetricRef, { type: TType }>) => void,
   ): void {
     const ns = this.resolveNamespace();
     if (ns === undefined) return;
@@ -137,7 +136,7 @@ export class SensorBase {
 
     if (!metric.enabled) return;
 
-    fn(metric as Extract<MetricRef, { type: TType }>, context.recorder!);
+    fn(metric as Extract<MetricRef, { type: TType }>);
   }
 }
 
@@ -176,8 +175,8 @@ export class Counter extends SensorBase {
   increment(valueOrTags?: number | Tags, tags?: Tags): void {
     const value = typeof valueOrTags === "number" ? valueOrTags : 1;
     const resolvedTags = typeof valueOrTags === "object" ? valueOrTags : tags;
-    this.withMetric("counter", (metric, recorder) => {
-      recorder.increment(metric, value, resolvedTags);
+    this.withMetric("counter", (ref) => {
+      ref.metric.increment(value, Date.now(), resolvedTags);
     });
   }
 }
@@ -212,8 +211,8 @@ export class Gauge extends SensorBase {
    * @param tags - Optional tags to attach to this data point.
    */
   set(value: number, tags?: Tags): void {
-    this.withMetric("gauge", (metric, recorder) => {
-      recorder.set(metric, value, tags);
+    this.withMetric("gauge", (ref) => {
+      ref.metric.set(value, Date.now(), tags);
     });
   }
 }
@@ -248,8 +247,8 @@ export class Histogram extends SensorBase {
    * @param tags - Optional tags to attach to this data point.
    */
   record(value: number, tags?: Tags): void {
-    this.withMetric("histogram", (metric, recorder) => {
-      recorder.record(metric, value, tags);
+    this.withMetric("histogram", (ref) => {
+      ref.metric.record(value, Date.now(), tags);
     });
   }
 }

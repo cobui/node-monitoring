@@ -12,10 +12,6 @@ import { getContext, getActiveNamespaces } from "../runtime/context";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function makeRecorder() {
-  return { increment: vi.fn(), set: vi.fn(), record: vi.fn() };
-}
-
 function makeRegistry(ref?: RegisteredMetric) {
   return { get: vi.fn().mockReturnValue(ref) };
 }
@@ -25,7 +21,7 @@ function makeCounterRef(enabled = true): RegisteredMetric {
     uri: "error",
     type: "counter",
     enabled,
-    metric: {} as Counter,
+    metric: { increment: vi.fn() } as any,
     interval: 1000,
     reset: false,
   };
@@ -36,7 +32,7 @@ function makeGaugeRef(enabled = true): RegisteredMetric {
     uri: "test.gauger",
     type: "gauge",
     enabled,
-    metric: {} as Gauge,
+    metric: { set: vi.fn() } as any,
     interval: 1000,
     reset: false,
   };
@@ -47,19 +43,17 @@ function makeHistogramRef(enabled = true): RegisteredMetric {
     uri: "test.histogram",
     type: "histogram",
     enabled,
-    metric: {} as Histogram,
+    metric: { record: vi.fn() } as any,
     interval: 1000,
     reset: false,
   };
 }
 
 function makeContext(makeRef: () => RegisteredMetric, overrides = {}) {
-  const recorder = makeRecorder();
   const ref = makeRef();
   const registry = makeRegistry(ref);
   return {
-    ctx: { active: true, version: 1, recorder, registry, ...overrides },
-    recorder,
+    ctx: { active: true, version: 1, registry, ...overrides },
     registry,
     ref,
   };
@@ -70,76 +64,71 @@ beforeEach(() => {
   vi.mocked(getActiveNamespaces).mockReset().mockReturnValue(["test"]);
 });
 
-// ─── Counter ───────────────────────────────────────────────────────────────────
+// ─── Counter ──────────────────────────────────────────────────────────────────
 
 describe("Counter.mark", () => {
-  it("calls recorder.increment with the metric ref, value and tags", () => {
-    const { ctx, recorder, ref } = makeContext(makeCounterRef);
+  it("calls metric.increment with value, timestamp and tags", () => {
+    const { ctx, ref } = makeContext(makeCounterRef);
     vi.mocked(getContext).mockReturnValue(ctx as any);
 
-    const counter = Counter.create("error", "test");
-    counter.increment(3, { route: "/api" });
+    Counter.create("error", "test").increment(3, { route: "/api" });
 
-    expect(recorder.increment).toHaveBeenCalledOnce();
-    expect(recorder.increment).toHaveBeenCalledWith(ref, 3, { route: "/api" });
+    expect(ref.metric.increment).toHaveBeenCalledOnce();
+    expect(ref.metric.increment).toHaveBeenCalledWith(3, expect.any(Number), { route: "/api" });
   });
 
   it("defaults to incrementing by 1", () => {
-    const { ctx, recorder, ref } = makeContext(makeCounterRef);
+    const { ctx, ref } = makeContext(makeCounterRef);
     vi.mocked(getContext).mockReturnValue(ctx as any);
 
     Counter.create("error", "test").increment();
 
-    expect(recorder.increment).toHaveBeenCalledWith(ref, 1, undefined);
+    expect(ref.metric.increment).toHaveBeenCalledWith(1, expect.any(Number), undefined);
   });
 
   it("accepts tags as the only argument, defaulting value to 1", () => {
-    const { ctx, recorder, ref } = makeContext(makeCounterRef);
+    const { ctx, ref } = makeContext(makeCounterRef);
     vi.mocked(getContext).mockReturnValue(ctx as any);
 
     Counter.create("error", "test").increment({ route: "/api" });
 
-    expect(recorder.increment).toHaveBeenCalledWith(ref, 1, { route: "/api" });
+    expect(ref.metric.increment).toHaveBeenCalledWith(1, expect.any(Number), { route: "/api" });
   });
 
   it("is a no-op when context is intentionally stopped (has registry)", () => {
-    const { ctx, recorder } = makeContext(makeCounterRef, { active: false });
+    const { ctx, ref } = makeContext(makeCounterRef, { active: false });
     vi.mocked(getContext).mockReturnValue(ctx as any);
 
     Counter.create("error", "test").increment();
 
-    expect(recorder.increment).not.toHaveBeenCalled();
+    expect(ref.metric.increment).not.toHaveBeenCalled();
   });
 
   it("is a no-op when the metric is not found in the registry", () => {
-    const recorder = makeRecorder();
     const registry = makeRegistry(undefined);
-    const ctx = { active: true, version: 1, recorder, registry };
-    vi.mocked(getContext).mockReturnValue(ctx as any);
+    vi.mocked(getContext).mockReturnValue({ active: true, version: 1, registry } as any);
 
-    Counter.create("error", "test").increment();
-
-    expect(recorder.increment).not.toHaveBeenCalled();
+    expect(() => Counter.create("error", "test").increment()).not.toThrow();
   });
 
   it("is a no-op when the metric is disabled", () => {
-    const { ctx, recorder } = makeContext(makeCounterRef);
-    ctx.registry = makeRegistry(makeCounterRef(false)) as any;
-    vi.mocked(getContext).mockReturnValue(ctx as any);
+    const ref = makeCounterRef(false);
+    const registry = makeRegistry(ref);
+    vi.mocked(getContext).mockReturnValue({ active: true, version: 1, registry } as any);
 
     Counter.create("error", "test").increment();
 
-    expect(recorder.increment).not.toHaveBeenCalled();
+    expect(ref.metric.increment).not.toHaveBeenCalled();
   });
 
   it("is a no-op when the metric type does not match", () => {
-    const { ctx, recorder } = makeContext(makeGaugeRef);
-    ctx.registry = makeRegistry(makeGaugeRef()) as any;
-    vi.mocked(getContext).mockReturnValue(ctx as any);
+    const ref = makeGaugeRef();
+    const registry = makeRegistry(ref);
+    vi.mocked(getContext).mockReturnValue({ active: true, version: 1, registry } as any);
 
     Counter.create("error", "test").increment();
 
-    expect(recorder.increment).not.toHaveBeenCalled();
+    expect(ref.metric.set).not.toHaveBeenCalled();
   });
 
   it("uses the cached ref on subsequent calls with the same version", () => {
@@ -159,7 +148,6 @@ describe("Counter.mark", () => {
 
     const counter = Counter.create("error", "test");
     counter.increment();
-
     ctx.version = 2;
     counter.increment();
 
@@ -167,59 +155,53 @@ describe("Counter.mark", () => {
   });
 });
 
-// ─── Gauge ──────────────────────────────────────────────────────────────────
+// ─── Gauge ────────────────────────────────────────────────────────────────────
 
 describe("Gauge.set", () => {
-  it("calls recorder.set with the correct metric ref, value and tags", () => {
-    const { ctx, recorder, ref } = makeContext(makeGaugeRef);
-    const gauge = Gauge.create("memory", "test");
-
+  it("calls metric.set with value, timestamp and tags", () => {
+    const { ctx, ref } = makeContext(makeGaugeRef);
     vi.mocked(getContext).mockReturnValue(ctx as any);
-    gauge.set(64, { type: "rss" });
 
-    expect(recorder.set).toHaveBeenCalledOnce();
-    expect(recorder.set).toHaveBeenCalledWith(ref, 64, { type: "rss" });
+    Gauge.create("memory", "test").set(64, { type: "rss" });
+
+    expect(ref.metric.set).toHaveBeenCalledOnce();
+    expect(ref.metric.set).toHaveBeenCalledWith(64, expect.any(Number), { type: "rss" });
   });
 
   it("is a no-op when the context is intentionally stopped (has registry)", () => {
-    const { ctx, recorder } = makeContext(makeGaugeRef, { active: false });
-    const gauge = Gauge.create("memory", "test");
-
+    const { ctx, ref } = makeContext(makeGaugeRef, { active: false });
     vi.mocked(getContext).mockReturnValue(ctx as any);
-    gauge.set(64, { type: "rss" });
 
-    expect(recorder.set).not.toHaveBeenCalled();
+    Gauge.create("memory", "test").set(64);
+
+    expect(ref.metric.set).not.toHaveBeenCalled();
   });
 
   it("is a no-op when the metric is not found in the registry", () => {
-    const recorder = makeRecorder();
     const registry = makeRegistry(undefined);
-    const ctx = { active: true, version: 1, recorder, registry };
-    vi.mocked(getContext).mockReturnValue(ctx as any);
+    vi.mocked(getContext).mockReturnValue({ active: true, version: 1, registry } as any);
 
-    Gauge.create("memory", "test").set(64);
-
-    expect(recorder.set).not.toHaveBeenCalled();
+    expect(() => Gauge.create("memory", "test").set(64)).not.toThrow();
   });
 
   it("is a no-op when the metric is disabled", () => {
-    const { ctx, recorder } = makeContext(makeGaugeRef);
-    ctx.registry = makeRegistry(makeGaugeRef(false)) as any;
-    vi.mocked(getContext).mockReturnValue(ctx as any);
+    const ref = makeGaugeRef(false);
+    const registry = makeRegistry(ref);
+    vi.mocked(getContext).mockReturnValue({ active: true, version: 1, registry } as any);
 
     Gauge.create("memory", "test").set(64);
 
-    expect(recorder.set).not.toHaveBeenCalled();
+    expect(ref.metric.set).not.toHaveBeenCalled();
   });
 
   it("is a no-op when the metric type does not match", () => {
-    const { ctx, recorder } = makeContext(makeCounterRef);
-    ctx.registry = makeRegistry(makeCounterRef()) as any;
-    vi.mocked(getContext).mockReturnValue(ctx as any);
+    const ref = makeCounterRef();
+    const registry = makeRegistry(ref);
+    vi.mocked(getContext).mockReturnValue({ active: true, version: 1, registry } as any);
 
     Gauge.create("memory", "test").set(64);
 
-    expect(recorder.set).not.toHaveBeenCalled();
+    expect(ref.metric.increment).not.toHaveBeenCalled();
   });
 
   it("uses the cached ref on subsequent calls with the same version", () => {
@@ -239,7 +221,6 @@ describe("Gauge.set", () => {
 
     const gauge = Gauge.create("memory", "test");
     gauge.set(1);
-
     ctx.version = 2;
     gauge.set(2);
 
@@ -250,54 +231,50 @@ describe("Gauge.set", () => {
 // ─── Histogram ────────────────────────────────────────────────────────────────
 
 describe("Histogram.record", () => {
-  it("calls recorder.record with the metric ref, value and tags", () => {
-    const { ctx, recorder, ref } = makeContext(makeHistogramRef);
+  it("calls metric.record with value, timestamp and tags", () => {
+    const { ctx, ref } = makeContext(makeHistogramRef);
     vi.mocked(getContext).mockReturnValue(ctx as any);
 
     Histogram.create("latency", "test").record(42, { route: "/api" });
 
-    expect(recorder.record).toHaveBeenCalledOnce();
-    expect(recorder.record).toHaveBeenCalledWith(ref, 42, { route: "/api" });
+    expect(ref.metric.record).toHaveBeenCalledOnce();
+    expect(ref.metric.record).toHaveBeenCalledWith(42, expect.any(Number), { route: "/api" });
   });
 
   it("is a no-op when the context is intentionally stopped (has registry)", () => {
-    const { ctx, recorder } = makeContext(makeHistogramRef, { active: false });
+    const { ctx, ref } = makeContext(makeHistogramRef, { active: false });
     vi.mocked(getContext).mockReturnValue(ctx as any);
 
     Histogram.create("latency", "test").record(42);
 
-    expect(recorder.record).not.toHaveBeenCalled();
+    expect(ref.metric.record).not.toHaveBeenCalled();
   });
 
   it("is a no-op when the metric is not found in the registry", () => {
-    const recorder = makeRecorder();
     const registry = makeRegistry(undefined);
-    const ctx = { active: true, version: 1, recorder, registry };
-    vi.mocked(getContext).mockReturnValue(ctx as any);
+    vi.mocked(getContext).mockReturnValue({ active: true, version: 1, registry } as any);
 
-    Histogram.create("latency", "test").record(42);
-
-    expect(recorder.record).not.toHaveBeenCalled();
+    expect(() => Histogram.create("latency", "test").record(42)).not.toThrow();
   });
 
   it("is a no-op when the metric is disabled", () => {
-    const { ctx, recorder } = makeContext(makeHistogramRef);
-    ctx.registry = makeRegistry(makeHistogramRef(false)) as any;
-    vi.mocked(getContext).mockReturnValue(ctx as any);
+    const ref = makeHistogramRef(false);
+    const registry = makeRegistry(ref);
+    vi.mocked(getContext).mockReturnValue({ active: true, version: 1, registry } as any);
 
     Histogram.create("latency", "test").record(42);
 
-    expect(recorder.record).not.toHaveBeenCalled();
+    expect(ref.metric.record).not.toHaveBeenCalled();
   });
 
   it("is a no-op when the metric type does not match", () => {
-    const { ctx, recorder } = makeContext(makeCounterRef);
-    ctx.registry = makeRegistry(makeCounterRef()) as any;
-    vi.mocked(getContext).mockReturnValue(ctx as any);
+    const ref = makeCounterRef();
+    const registry = makeRegistry(ref);
+    vi.mocked(getContext).mockReturnValue({ active: true, version: 1, registry } as any);
 
     Histogram.create("latency", "test").record(42);
 
-    expect(recorder.record).not.toHaveBeenCalled();
+    expect(ref.metric.increment).not.toHaveBeenCalled();
   });
 
   it("uses the cached ref on subsequent calls with the same version", () => {
@@ -317,7 +294,6 @@ describe("Histogram.record", () => {
 
     const histogram = Histogram.create("latency", "test");
     histogram.record(10);
-
     ctx.version = 2;
     histogram.record(20);
 
@@ -339,18 +315,13 @@ describe("SensorBase warnings", () => {
     warnings.removeAllListeners();
   });
 
-  // ── sensor:inactive ─────────────────────────────────────────────────────────
-
-  // ── namespace auto-resolution ───────────────────────────────────────────────
-
   it("auto-resolves to the single active namespace when no namespace is given", () => {
-    const { ctx, recorder, ref } = makeContext(makeCounterRef);
+    const { ctx, ref } = makeContext(makeCounterRef);
     vi.mocked(getContext).mockReturnValue(ctx as any);
-    // getActiveNamespaces already returns ["test"] by default
 
     Counter.create("error").increment(1);
 
-    expect(recorder.increment).toHaveBeenCalledWith(ref, 1, undefined);
+    expect(ref.metric.increment).toHaveBeenCalledWith(1, expect.any(Number), undefined);
   });
 
   it("emits sensor:ambiguous when no namespace given and multiple are active", () => {
@@ -384,12 +355,10 @@ describe("SensorBase warnings", () => {
     expect(warnSpy).toHaveBeenCalledOnce();
   });
 
-  // ── sensor:inactive ─────────────────────────────────────────────────────────
-
   it("warns via console.warn when namespace has never been started (no registry)", () => {
     vi.mocked(getContext).mockReturnValue({ active: false, version: 0 } as any);
 
-    Counter.create("hits", "app").increment(); // explicit namespace bypasses auto-resolve
+    Counter.create("hits", "app").increment();
 
     expect(warnSpy).toHaveBeenCalledOnce();
     expect(warnSpy.mock.calls[0][0]).toContain("[node-monitoring]");
@@ -424,8 +393,8 @@ describe("SensorBase warnings", () => {
     vi.mocked(getActiveNamespaces).mockReturnValue([]);
 
     const counter = Counter.create("hits");
-    counter.increment(); // first call → warning emitted
-    counter.increment(); // second call → warnedInactive already true → no second warning
+    counter.increment();
+    counter.increment();
 
     expect(warnSpy).toHaveBeenCalledOnce();
   });
@@ -449,12 +418,9 @@ describe("SensorBase warnings", () => {
     expect(warnSpy).not.toHaveBeenCalled();
   });
 
-  // ── sensor:not-found ────────────────────────────────────────────────────────
-
   it("warns via console.warn when metric URI is not registered", () => {
-    const recorder = makeRecorder();
     const registry = makeRegistry(undefined);
-    vi.mocked(getContext).mockReturnValue({ active: true, version: 1, recorder, registry } as any);
+    vi.mocked(getContext).mockReturnValue({ active: true, version: 1, registry } as any);
 
     Counter.create("unknown.metric", "app").increment();
 
@@ -464,9 +430,8 @@ describe("SensorBase warnings", () => {
   });
 
   it("warns at most once per sensor instance for a missing metric", () => {
-    const recorder = makeRecorder();
     const registry = makeRegistry(undefined);
-    vi.mocked(getContext).mockReturnValue({ active: true, version: 1, recorder, registry } as any);
+    vi.mocked(getContext).mockReturnValue({ active: true, version: 1, registry } as any);
 
     const counter = Counter.create("unknown.metric", "app");
     counter.increment();
@@ -476,9 +441,8 @@ describe("SensorBase warnings", () => {
   });
 
   it("emits sensor:not-found event instead of console.warn when a listener is registered", () => {
-    const recorder = makeRecorder();
     const registry = makeRegistry(undefined);
-    vi.mocked(getContext).mockReturnValue({ active: true, version: 1, recorder, registry } as any);
+    vi.mocked(getContext).mockReturnValue({ active: true, version: 1, registry } as any);
     const received: unknown[] = [];
     warnings.on("sensor:not-found", (p) => received.push(p));
 

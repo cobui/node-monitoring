@@ -1,6 +1,5 @@
 import cluster from "node:cluster";
 import { Registry } from "./registry";
-import { Recorder } from "./runtime/recorder";
 import { Collector } from "./collector";
 import { acquireQueue, acquireQueueByRef, releaseQueue } from "./transport/queues";
 import { TransportQueue } from "./transport/queue";
@@ -56,7 +55,6 @@ export class Monitor {
   private readonly namespace: string;
   private readonly transporter: Transporter;
   private readonly registry: Registry;
-  private readonly recorder: Recorder;
   private readonly collector: Collector;
   private readonly sink: AggregateSink;
 
@@ -72,7 +70,6 @@ export class Monitor {
     }
 
     this.registry = new Registry(namespace);
-    this.recorder = new Recorder();
     if (metrics.length) this.registry.register(metrics);
     this.collector = new Collector({ namespace, ...tags }, this.registry, this.sink);
   }
@@ -84,7 +81,7 @@ export class Monitor {
    * and restart the collection timers without duplicating listeners or contexts.
    */
   start(): void {
-    activateContext(this.namespace, this.registry, this.recorder);
+    activateContext(this.namespace, this.registry);
     if (!cluster.isWorker) activateListener();
     this.collector.start();
   }

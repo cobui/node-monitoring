@@ -1,5 +1,4 @@
 import { Gauge, Counter, Histogram } from "./metric";
-import { Recorder } from "./runtime/recorder";
 import { Registry } from "./registry";
 /**
  * A set of key-value pairs attached to a metric data point for filtering and grouping.
@@ -114,9 +113,9 @@ export type MetricConfig = {
 };
 
 /**
- * Runtime state shared between the registry, recorder, and sensors.
+ * Runtime state shared between the registry and sensors.
  * Passed through the active context to give components access to the
- * current registry and recorder without direct coupling.
+ * current registry without direct coupling.
  */
 export type Context = {
   /** Whether the monitoring runtime is currently active. */
@@ -125,8 +124,6 @@ export type Context = {
   version: number;
   /** The active registry, if the runtime has been initialised. */
   registry?: Registry;
-  /** The active recorder, if the runtime has been initialised. */
-  recorder?: Recorder;
 };
 
 /**
