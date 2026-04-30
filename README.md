@@ -226,7 +226,26 @@ The second namespace reuses the same rate-limited queue. The referenced key must
 
 ## Cluster mode
 
-No setup required. On worker processes, aggregates are forwarded to the primary via IPC. The primary consolidates them in a shared rate-limited queue. There is always only one queue per transporter key, regardless of how many workers or namespaces share it.
+### Data plane (automatic)
+
+On worker processes, aggregates are automatically forwarded to the primary via IPC. The primary consolidates them in a shared rate-limited queue and sends them to InfluxDB. No setup is required on the worker side — the package handles this transparently.
+
+**The primary must have a Monitor registered with a matching transporter key.** The IPC listener on the primary routes incoming aggregates by transporter key. If no Monitor on the primary has registered that key, messages are silently dropped. In a typical cluster setup the primary naturally runs a Monitor alongside its workers. In setups where the primary does nothing except fork workers (e.g. PM2 cluster mode, separate primary/worker files), the primary must still instantiate a `Monitoring` to anchor the queue.
+
+### Control plane (application responsibility)
+
+The package's IPC support is one-directional: **worker → primary** for metric data. Runtime control operations — `start()`, `stop()`, `setNamespaceEnabled()`, `reschedule()` — are **local to the calling process**. In a cluster, calling `monitoring.stop()` inside a request handler only stops the monitor on whichever worker handled that request; the other workers are unaffected.
+
+If your application needs runtime monitoring control to propagate across all workers (e.g. via an admin UI), this must be coordinated at the application layer. The recommended patterns are:
+
+- **Put admin endpoints on the primary** (e.g. a separate port like `:9090`). The primary is a single stable process — changes made there apply exactly once.
+- **Broadcast via IPC** — the primary receives the admin command and forwards it to each worker with `worker.send(command)`.
+
+The package deliberately does not provide a control-plane broadcast mechanism, as the application layer owns decisions about acknowledgement, ordering, and error handling.
+
+### Per-process namespace constraint
+
+Each namespace may only be active once per process. Registering the same namespace in two `Monitoring` instances within the same process throws an error. This constraint is per-process — workers, cron jobs, and separate containers each have independent memory and are unaffected by each other.
 
 ---
 
