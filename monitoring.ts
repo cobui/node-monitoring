@@ -62,15 +62,6 @@ export class Monitoring {
   }
 
   /**
-   * Retrieves a previously added monitor by namespace.
-   * @param namespace - The namespace the monitor was registered under.
-   * @returns The Monitor, or `undefined` if not found.
-   */
-  get(namespace: string): Monitor | undefined {
-    return this.monitors.get(namespace);
-  }
-
-  /**
    * Returns whether the given namespace is currently active.
    * Reads the live context state — the context is the authoritative source of truth.
    * @param namespace - The namespace to check.
@@ -167,10 +158,18 @@ export class Monitoring {
   }
 
   /**
-   * Destroys all registered monitors and clears internal state.
-   * The Monitoring instance should not be used after this call.
+   * Destroys one or all monitors and removes them from internal state.
+   * If a namespace is given, only that monitor is destroyed; otherwise all
+   * monitors are destroyed and the Monitoring instance should not be used again.
+   * @param namespace - Optional namespace to destroy. When omitted, destroys all.
    */
-  destroy(): void {
+  destroy(namespace?: string): void {
+    if (namespace !== undefined) {
+      this.monitors.get(namespace)?.destroy();
+      this.monitors.delete(namespace);
+      this.intents.delete(namespace);
+      return;
+    }
     for (const monitor of this.monitors.values()) monitor.destroy();
     this.monitors.clear();
     this.intents.clear();

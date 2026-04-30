@@ -458,7 +458,7 @@ describe("reschedule()", () => {
         metrics: [{ uri: "hits", type: "counter", interval: 1000 }],
       },
     ]);
-    monitoring.get("app")!.rescheduleMetric("hits", 5000);
+    monitoring.reschedule("app", "hits", 5000);
 
     Counter.create("hits", "app").increment(2);
 

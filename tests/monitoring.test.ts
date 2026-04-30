@@ -48,21 +48,6 @@ function makeConfig(namespace: string, enabled?: boolean): MonitorConfig {
 // ─── Monitoring.add ──────────────────────────────────────────────────────────
 
 describe("Monitoring.add", () => {
-  it("stores each monitor so it can be retrieved by namespace", () => {
-    const monitoring = new Monitoring();
-    monitoring.add([makeConfig("app")]);
-    expect(monitoring.get("app")).toBeInstanceOf(Monitor);
-    monitoring.destroy();
-  });
-
-  it("registers all configs when given an array", () => {
-    const monitoring = new Monitoring();
-    monitoring.add([makeConfig("app"), makeConfig("auth", false)]);
-    expect(monitoring.get("app")).toBeDefined();
-    expect(monitoring.get("auth")).toBeDefined();
-    monitoring.destroy();
-  });
-
   it("auto-starts the monitor when enabled is true (default)", () => {
     const monitoring = new Monitoring();
     monitoring.add([makeConfig("app")]);
@@ -76,14 +61,13 @@ describe("Monitoring.add", () => {
     expect(activateContext).not.toHaveBeenCalled();
     monitoring.destroy();
   });
-});
 
-// ─── Monitoring.get ──────────────────────────────────────────────────────────
-
-describe("Monitoring.get", () => {
-  it("returns undefined for an unknown namespace", () => {
+  it("registers all configs when given an array", () => {
     const monitoring = new Monitoring();
-    expect(monitoring.get("unknown")).toBeUndefined();
+    monitoring.add([makeConfig("app"), makeConfig("auth", false)]);
+    expect(activateContext).toHaveBeenCalledWith("app", expect.anything(), expect.anything());
+    expect(activateContext).not.toHaveBeenCalledWith("auth", expect.anything(), expect.anything());
+    monitoring.destroy();
   });
 });
 
@@ -113,20 +97,20 @@ describe("Monitoring.setEnabled", () => {
   it("starts the monitor when enabling a disabled namespace", () => {
     const monitoring = new Monitoring();
     monitoring.add([makeConfig("app", false)]);
-    const monitor = monitoring.get("app")!;
-    const spy = vi.spyOn(monitor, "start").mockImplementation(() => {});
+    const spy = vi.spyOn(Monitor.prototype, "start").mockImplementation(() => {});
     monitoring.setNamespaceEnabled("app", true);
     expect(spy).toHaveBeenCalledOnce();
+    spy.mockRestore();
     monitoring.destroy();
   });
 
   it("stops the monitor when disabling an enabled namespace", () => {
     const monitoring = new Monitoring();
     monitoring.add([makeConfig("app")]);
-    const monitor = monitoring.get("app")!;
-    const spy = vi.spyOn(monitor, "stop").mockImplementation(() => {});
+    const spy = vi.spyOn(Monitor.prototype, "stop").mockImplementation(() => {});
     monitoring.setNamespaceEnabled("app", false);
     expect(spy).toHaveBeenCalledOnce();
+    spy.mockRestore();
     monitoring.destroy();
   });
 
@@ -138,11 +122,11 @@ describe("Monitoring.setEnabled", () => {
   it("respects the disabled intent on a subsequent start()", () => {
     const monitoring = new Monitoring();
     monitoring.add([makeConfig("app")]);
-    const monitor = monitoring.get("app")!;
     monitoring.setNamespaceEnabled("app", false);
-    const spy = vi.spyOn(monitor, "start").mockImplementation(() => {});
+    const spy = vi.spyOn(Monitor.prototype, "start").mockImplementation(() => {});
     monitoring.start();
     expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
     monitoring.destroy();
   });
 });
@@ -153,30 +137,20 @@ describe("Monitoring.start", () => {
   it("starts all configured-enabled monitors", () => {
     const monitoring = new Monitoring();
     monitoring.add([makeConfig("app"), makeConfig("auth")]);
-    const a = monitoring.get("app")!;
-    const b = monitoring.get("auth")!;
-
-    const spyA = vi.spyOn(a, "start").mockImplementation(() => {});
-    const spyB = vi.spyOn(b, "start").mockImplementation(() => {});
+    const spy = vi.spyOn(Monitor.prototype, "start").mockImplementation(() => {});
     monitoring.start();
-
-    expect(spyA).toHaveBeenCalledOnce();
-    expect(spyB).toHaveBeenCalledOnce();
+    expect(spy).toHaveBeenCalledTimes(2);
+    spy.mockRestore();
     monitoring.destroy();
   });
 
   it("skips monitors that were explicitly disabled", () => {
     const monitoring = new Monitoring();
     monitoring.add([makeConfig("app"), makeConfig("debug", false)]);
-    const a = monitoring.get("app")!;
-    const b = monitoring.get("debug")!;
-
-    const spyA = vi.spyOn(a, "start").mockImplementation(() => {});
-    const spyB = vi.spyOn(b, "start").mockImplementation(() => {});
+    const spy = vi.spyOn(Monitor.prototype, "start").mockImplementation(() => {});
     monitoring.start();
-
-    expect(spyA).toHaveBeenCalledOnce();
-    expect(spyB).not.toHaveBeenCalled();
+    expect(spy).toHaveBeenCalledTimes(1);
+    spy.mockRestore();
     monitoring.destroy();
   });
 });
@@ -187,26 +161,21 @@ describe("Monitoring.stop", () => {
   it("calls stop on every registered monitor", () => {
     const monitoring = new Monitoring();
     monitoring.add([makeConfig("app"), makeConfig("auth")]);
-    const a = monitoring.get("app")!;
-    const b = monitoring.get("auth")!;
-
-    const spyA = vi.spyOn(a, "stop").mockImplementation(() => {});
-    const spyB = vi.spyOn(b, "stop").mockImplementation(() => {});
+    const spy = vi.spyOn(Monitor.prototype, "stop").mockImplementation(() => {});
     monitoring.stop();
-
-    expect(spyA).toHaveBeenCalledOnce();
-    expect(spyB).toHaveBeenCalledOnce();
+    expect(spy).toHaveBeenCalledTimes(2);
+    spy.mockRestore();
     monitoring.destroy();
   });
 
   it("does not change the configured intent — start() restarts enabled monitors", () => {
     const monitoring = new Monitoring();
     monitoring.add([makeConfig("app")]);
-    const monitor = monitoring.get("app")!;
     monitoring.stop();
-    const spy = vi.spyOn(monitor, "start").mockImplementation(() => {});
+    const spy = vi.spyOn(Monitor.prototype, "start").mockImplementation(() => {});
     monitoring.start();
     expect(spy).toHaveBeenCalledOnce();
+    spy.mockRestore();
     monitoring.destroy();
   });
 });
@@ -217,10 +186,10 @@ describe("Monitoring.reschedule", () => {
   it("delegates to the monitor's rescheduleMetric", () => {
     const monitoring = new Monitoring();
     monitoring.add([makeConfig("app")]);
-    const monitor = monitoring.get("app")!;
-    const spy = vi.spyOn(monitor, "rescheduleMetric").mockImplementation(() => {});
+    const spy = vi.spyOn(Monitor.prototype, "rescheduleMetric").mockImplementation(() => {});
     monitoring.reschedule("app", "http.requests", 5000);
     expect(spy).toHaveBeenCalledWith("http.requests", 5000);
+    spy.mockRestore();
     monitoring.destroy();
   });
 
@@ -236,23 +205,20 @@ describe("Monitoring.start — single namespace", () => {
   it("starts only the given namespace when its intent is enabled", () => {
     const monitoring = new Monitoring();
     monitoring.add([makeConfig("app"), makeConfig("auth")]);
-    const a = monitoring.get("app")!;
-    const b = monitoring.get("auth")!;
-    const spyA = vi.spyOn(a, "start").mockImplementation(() => {});
-    const spyB = vi.spyOn(b, "start").mockImplementation(() => {});
+    const spy = vi.spyOn(Monitor.prototype, "start").mockImplementation(() => {});
     monitoring.start("app");
-    expect(spyA).toHaveBeenCalledOnce();
-    expect(spyB).not.toHaveBeenCalled();
+    expect(spy).toHaveBeenCalledTimes(1);
+    spy.mockRestore();
     monitoring.destroy();
   });
 
   it("does not start when the namespace intent is disabled", () => {
     const monitoring = new Monitoring();
     monitoring.add([makeConfig("app", false)]);
-    const monitor = monitoring.get("app")!;
-    const spy = vi.spyOn(monitor, "start").mockImplementation(() => {});
+    const spy = vi.spyOn(Monitor.prototype, "start").mockImplementation(() => {});
     monitoring.start("app");
     expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
     monitoring.destroy();
   });
 });
@@ -263,13 +229,10 @@ describe("Monitoring.flush — single namespace", () => {
   it("flushes only the given namespace", async () => {
     const monitoring = new Monitoring();
     monitoring.add([makeConfig("app"), makeConfig("auth")]);
-    const a = monitoring.get("app")!;
-    const b = monitoring.get("auth")!;
-    const spyA = vi.spyOn(a, "flush").mockResolvedValue(undefined);
-    const spyB = vi.spyOn(b, "flush").mockResolvedValue(undefined);
+    const spy = vi.spyOn(Monitor.prototype, "flush").mockResolvedValue(undefined);
     await monitoring.flush("app");
-    expect(spyA).toHaveBeenCalledOnce();
-    expect(spyB).not.toHaveBeenCalled();
+    expect(spy).toHaveBeenCalledTimes(1);
+    spy.mockRestore();
     monitoring.destroy();
   });
 });
@@ -280,13 +243,10 @@ describe("Monitoring.stop — single namespace", () => {
   it("stops only the given namespace", () => {
     const monitoring = new Monitoring();
     monitoring.add([makeConfig("app"), makeConfig("auth")]);
-    const a = monitoring.get("app")!;
-    const b = monitoring.get("auth")!;
-    const spyA = vi.spyOn(a, "stop").mockImplementation(() => {});
-    const spyB = vi.spyOn(b, "stop").mockImplementation(() => {});
+    const spy = vi.spyOn(Monitor.prototype, "stop").mockImplementation(() => {});
     monitoring.stop("app");
-    expect(spyA).toHaveBeenCalledOnce();
-    expect(spyB).not.toHaveBeenCalled();
+    expect(spy).toHaveBeenCalledTimes(1);
+    spy.mockRestore();
     monitoring.destroy();
   });
 });
@@ -297,24 +257,30 @@ describe("Monitoring.destroy", () => {
   it("calls destroy on every registered monitor", () => {
     const monitoring = new Monitoring();
     monitoring.add([makeConfig("app"), makeConfig("auth")]);
-    const a = monitoring.get("app")!;
-    const b = monitoring.get("auth")!;
-
-    const spyA = vi.spyOn(a, "destroy").mockImplementation(() => {});
-    const spyB = vi.spyOn(b, "destroy").mockImplementation(() => {});
+    const spy = vi.spyOn(Monitor.prototype, "destroy").mockImplementation(() => {});
     monitoring.destroy();
-
-    expect(spyA).toHaveBeenCalledOnce();
-    expect(spyB).toHaveBeenCalledOnce();
+    expect(spy).toHaveBeenCalledTimes(2);
+    spy.mockRestore();
   });
 
-  it("clears the internal monitor map", () => {
+  it("removes a single namespace when given", () => {
+    const monitoring = new Monitoring();
+    monitoring.add([makeConfig("app"), makeConfig("auth")]);
+    const spy = vi.spyOn(Monitor.prototype, "destroy").mockImplementation(() => {});
+    monitoring.destroy("app");
+    expect(spy).toHaveBeenCalledTimes(1);
+    // auth monitor is still alive
+    expect(destroyContext).not.toHaveBeenCalledWith("auth");
+    spy.mockRestore();
+    monitoring.destroy();
+  });
+
+  it("clears all internal state after full destroy", () => {
     const monitoring = new Monitoring();
     monitoring.add([makeConfig("app")]);
-
-    vi.spyOn(monitoring.get("app")!, "destroy").mockImplementation(() => {});
+    vi.spyOn(Monitor.prototype, "destroy").mockImplementation(() => {});
     monitoring.destroy();
-
-    expect(monitoring.get("app")).toBeUndefined();
+    // A subsequent destroy should be a no-op (map is empty)
+    expect(() => monitoring.destroy()).not.toThrow();
   });
 });
