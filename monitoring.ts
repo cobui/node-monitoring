@@ -1,5 +1,5 @@
 import { Monitor } from "./monitor";
-import { getContext } from "./runtime/context";
+import { getContext, isNamespaceOwned } from "./runtime/context";
 import type { MonitorConfig } from "./monitor";
 
 /**
@@ -49,10 +49,25 @@ export class Monitoring {
    * ```ts
    * monitoring.add(loadConfig("monitoring.config.yml"));
    * ```
+   *
+   * **Each namespace may only be active once per process.** Attempting to register a
+   * namespace that is already owned by another Monitor — whether in this instance or
+   * a separate `Monitoring` instance — throws an error. This constraint is per-process:
+   * separate processes (cron jobs, separate containers) have independent memory and are
+   * unaffected. Note that cluster workers are separate processes but share the same
+   * transporter key space via IPC — the primary must have a Monitor registered with a
+   * matching transporter key for worker aggregates to be delivered.
+   *
    * @param configs - Array of monitor configurations to register.
+   * @throws If any namespace in `configs` is already active in this process.
    */
   add(configs: MonitorConfig[]): void {
     for (const config of configs) {
+      if (isNamespaceOwned(config.namespace)) {
+        throw new Error(
+          `[node-monitoring] Namespace "${config.namespace}" is already active in this process. Each namespace may only be owned by one Monitor at a time.`,
+        );
+      }
       const monitor = new Monitor(config);
       const enabled = config.enabled ?? true;
       this.monitors.set(config.namespace, monitor);
@@ -62,7 +77,7 @@ export class Monitoring {
   }
 
   /**
-   * Returns whether the given namespace is currently active.
+   * Returns whether the given namespace is currenttly active.
    * Reads the live context state — the context is the authoritative source of truth.
    * @param namespace - The namespace to check.
    */

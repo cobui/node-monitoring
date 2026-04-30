@@ -13,6 +13,7 @@ vi.mock("../runtime/context", () => ({
   destroyContext: vi.fn(),
   bumpVersion: vi.fn(),
   getContext: vi.fn().mockReturnValue({ active: false, version: 0 }),
+  isNamespaceOwned: vi.fn().mockReturnValue(false),
 }));
 
 vi.mock("../transport/factory", () => ({

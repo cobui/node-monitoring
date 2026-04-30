@@ -4,6 +4,16 @@ import { Context } from "../types";
 
 const context = new Map<string, Context>();
 
+/**
+ * Returns true if a namespace is currently owned by a Monitor — i.e. a registry has
+ * been assigned to it and not yet released. Used to detect duplicate namespace
+ * registration across multiple Monitoring instances in the same process.
+ */
+export function isNamespaceOwned(namespace: string): boolean {
+  const ctx = context.get(namespace);
+  return ctx !== undefined && ctx.registry !== undefined;
+}
+
 export function getContext(namespace: string): Context {
   let ctx = context.get(namespace);
   if (!ctx) {
