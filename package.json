@@ -4,6 +4,7 @@
   "description": "A lightweight monitoring library for Node.js",
   "author": "Dennis Zerihun",
   "license": "MIT",
+  "type": "commonjs",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
