@@ -236,6 +236,58 @@ describe("Monitoring.flush — single namespace", () => {
     spy.mockRestore();
     monitoring.destroy();
   });
+
+  it("awaits Monitor.flush() before resolving", async () => {
+    let resolveFlush!: () => void;
+    const spy = vi
+      .spyOn(Monitor.prototype, "flush")
+      .mockImplementation(() => new Promise<void>((r) => { resolveFlush = r; }));
+
+    const monitoring = new Monitoring();
+    monitoring.add([makeConfig("app")]);
+
+    let done = false;
+    const flushPromise = monitoring.flush("app").then(() => { done = true; });
+
+    // Yield so that Monitoring.flush() reaches Monitor.prototype.flush and sets resolveFlush.
+    await Promise.resolve();
+
+    expect(done).toBe(false);
+    resolveFlush();
+    await flushPromise;
+    expect(done).toBe(true);
+
+    spy.mockRestore();
+    monitoring.destroy();
+  });
+
+  it("awaits all Monitor.flush() calls when no namespace given", async () => {
+    const resolvers: Array<() => void> = [];
+    const spy = vi
+      .spyOn(Monitor.prototype, "flush")
+      .mockImplementation(() => new Promise<void>((r) => { resolvers.push(r); }));
+
+    const monitoring = new Monitoring();
+    monitoring.add([makeConfig("app"), makeConfig("auth")]);
+
+    let done = false;
+    const flushPromise = monitoring.flush().then(() => { done = true; });
+
+    // Yield so that both Monitor.flush() spies run and populate resolvers[].
+    await Promise.resolve();
+
+    expect(done).toBe(false);
+    expect(resolvers).toHaveLength(2);
+    resolvers[0]();
+    await Promise.resolve(); // only one resolved — still waiting
+    expect(done).toBe(false);
+    resolvers[1]();
+    await flushPromise;
+    expect(done).toBe(true);
+
+    spy.mockRestore();
+    monitoring.destroy();
+  });
 });
 
 // ─── Monitoring.stop (single namespace) ──────────────────────────────────────

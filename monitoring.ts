@@ -148,6 +148,12 @@ export class Monitoring {
    * `await flush()` with `destroy()` before exiting to release all timers and
    * event listeners.
    *
+   * **Process exit caveats:**
+   * - `process.on("exit", handler)` — synchronous; async operations are
+   *   abandoned. Use an async `main()` and call `process.exit(0)` explicitly.
+   * - `process.on("SIGTERM"/"SIGINT", handler)` — can be `async`, but requires
+   *   an explicit `process.exit(0)` call at the end of the handler.
+   *
    * @param namespace - Optional namespace to flush. When omitted, flushes all.
    */
   async flush(namespace?: string): Promise<void> {

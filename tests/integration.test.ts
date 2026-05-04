@@ -447,6 +447,61 @@ describe("flush()", () => {
   });
 });
 
+// ─── Ephemeral process / shutdown ────────────────────────────────────────────
+//
+// Short-lived processes (cron jobs, batch scripts, migration runners) exit
+// before the scheduled collection interval ever fires. The only way to deliver
+// in-flight data is to explicitly call `await flush()` before `destroy()`.
+//
+// These tests verify the two outcomes:
+//   - correct pattern (async shutdown handler): data arrives
+//   - wrong pattern (sync exit, no flush):      data is silently lost
+
+describe("Ephemeral process — shutdown patterns", () => {
+  it("correct: awaiting flush() in an async SIGTERM handler delivers all recorded data", async () => {
+    monitoring.add([
+      {
+        namespace: "app",
+        transporter: TRANSPORTER_CONFIG,
+        // Very long interval — the scheduled collector would never fire before exit
+        metrics: [{ uri: "jobs.processed", type: "counter", interval: 60_000 }],
+      },
+    ]);
+
+    Counter.create("jobs.processed", "app").increment(42);
+
+    // Represents: process.on("SIGTERM", async () => { await monitoring.flush(); monitoring.destroy(); process.exit(0); })
+    // The async function keeps the event loop alive until flush resolves; process.exit(0) then terminates cleanly.
+    await monitoring.flush();
+    monitoring.destroy();
+
+    expect(sendSpy).toHaveBeenCalledOnce();
+    expect(sendSpy.mock.calls[0][0]).toMatchObject({
+      value: { value: 42 },
+      tags: expect.objectContaining({ uri: "jobs.processed", namespace: "app" }),
+    });
+  });
+
+  it("wrong: destroying without flush loses data — analogous to process.on('exit') which cannot await", async () => {
+    monitoring.add([
+      {
+        namespace: "app",
+        transporter: TRANSPORTER_CONFIG,
+        metrics: [{ uri: "jobs.processed", type: "counter", interval: 60_000 }],
+      },
+    ]);
+
+    Counter.create("jobs.processed", "app").increment(42);
+
+    // process.on("exit") is synchronous — any async call made there is abandoned.
+    // Simulated here as: the queue is released (timers cleared) before flush() is ever called.
+    monitoring.destroy();
+    await vi.advanceTimersByTimeAsync(200); // no timers remain; nothing drains
+
+    expect(sendSpy).not.toHaveBeenCalled();
+  });
+});
+
 // ─── Reschedule ───────────────────────────────────────────────────────────────
 
 describe("reschedule()", () => {

@@ -64,6 +64,28 @@ describe("TransportQueue — edge cases", () => {
     q.destroy();
   });
 
+  it("drainAll resolves only after send() completes", async () => {
+    const { TransportQueue } = await import("../transport/queue.js");
+    let resolveSend!: () => void;
+    const t = makeTransporter({
+      rateLimit: 1,
+      retry: { retries: 0 },
+      send: vi.fn().mockImplementation(() => new Promise<void>((r) => { resolveSend = r; })),
+    });
+    const q = new TransportQueue(t as any);
+    q.enqueue(makeAggregate());
+
+    let drained = false;
+    const drainPromise = q.drainAll().then(() => { drained = true; });
+
+    // send() is still pending — drainAll should not have resolved
+    expect(drained).toBe(false);
+    resolveSend();
+    await drainPromise;
+    expect(drained).toBe(true);
+    q.destroy();
+  });
+
   it("records loss with 'unknown' namespace when the namespace tag is absent", async () => {
     const { TransportQueue } = await import("../transport/queue.js");
     const t = makeTransporter({

@@ -121,6 +121,16 @@ export class Monitor {
    * `flush()` alone does **not** close all handles — the loss-reporting timer
    * inside the transport queue remains active until {@link Monitor#destroy} is
    * called. Always follow `await flush()` with `destroy()` before exiting.
+   *
+   * **Process exit caveats:**
+   * - `process.on("exit", handler)` — the exit event is synchronous; any
+   *   async operation started inside it is abandoned. Place `await flush()` in
+   *   your async `main()` function and call `process.exit(0)` explicitly after
+   *   `destroy()`.
+   * - `process.on("SIGTERM"/"SIGINT", handler)` — the handler can be `async`
+   *   and `await flush()` will work, but only if you call `process.exit(0)` at
+   *   the end of the handler. Without an explicit exit call the process will
+   *   not terminate.
    */
   async flush(): Promise<void> {
     await this.collector.flush();

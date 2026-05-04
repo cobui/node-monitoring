@@ -75,4 +75,30 @@ describe("Monitor — primary process", () => {
     drainSpy.mockRestore();
     monitor.destroy();
   });
+
+  it("flush() awaits drainAll before resolving", async () => {
+    let resolveDrain!: () => void;
+    const drainSpy = vi
+      .spyOn(TransportQueue.prototype, "drainAll")
+      .mockImplementation(() => new Promise<void>((r) => { resolveDrain = r; }));
+
+    const monitor = new Monitor(makeConfig());
+    monitor.start();
+
+    let flushed = false;
+    const flushPromise = monitor.flush().then(() => { flushed = true; });
+
+    // Yield twice: once for collector.flush() to start, once for collect() to complete —
+    // only then does monitor.flush() reach drainAll() and set resolveDrain.
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(flushed).toBe(false); // drainAll called but not yet resolved
+    resolveDrain();
+    await flushPromise;
+    expect(flushed).toBe(true);
+
+    drainSpy.mockRestore();
+    monitor.destroy();
+  });
 });
