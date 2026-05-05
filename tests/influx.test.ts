@@ -224,6 +224,18 @@ describe("Influx line protocol — tag escaping", () => {
 // ─── URL construction ─────────────────────────────────────────────────────────
 
 describe("Influx URL construction", () => {
+  it("V3: path uses /api/v3/write_lp with database and precision=millisecond", async () => {
+    const { Influx } = await import("../transport/influx.js");
+    const influx = new Influx({ version: 3, host: "h", database: "mydb", token: "t" });
+    await influx.send([makeAggregate({ uri: "x", namespace: "app" }, 1)]);
+    const { options } = requests[0];
+    expect(options.path).toContain("/api/v3/write_lp");
+    expect(options.path).toContain("database=mydb");
+    expect(options.path).toContain("precision=millisecond");
+    expect(options.path).not.toContain("org=");
+    expect(options.path).not.toContain("bucket=");
+  });
+
   it("V2: path includes org, bucket, and precision=ms", async () => {
     const { Influx } = await import("../transport/influx.js");
     const influx = new Influx({
@@ -268,6 +280,20 @@ describe("Influx URL construction", () => {
     expect(requests[0].options.path).toContain("rp=90d");
   });
 
+  it("V3: omits port by default so Node uses the protocol default (443 for https, 80 for http)", async () => {
+    const { Influx } = await import("../transport/influx.js");
+    const influx = new Influx({ version: 3, host: "h", database: "db", token: "t" });
+    await influx.send([makeAggregate({ uri: "x", namespace: "app" }, 1)]);
+    expect(requests[0].options.port).toBeUndefined();
+  });
+
+  it("V3: uses the explicitly configured port (e.g. 8181 for Core)", async () => {
+    const { Influx } = await import("../transport/influx.js");
+    const influx = new Influx({ version: 3, host: "h", database: "db", token: "t", port: 8181 });
+    await influx.send([makeAggregate({ uri: "x", namespace: "app" }, 1)]);
+    expect(requests[0].options.port).toBe(8181);
+  });
+
   it("uses the configured port", async () => {
     const { Influx } = await import("../transport/influx.js");
     const influx = new Influx({
@@ -286,6 +312,14 @@ describe("Influx URL construction", () => {
 // ─── Auth headers ─────────────────────────────────────────────────────────────
 
 describe("Influx auth headers", () => {
+  it("V3: sends Bearer auth header", async () => {
+    const { Influx } = await import("../transport/influx.js");
+    const influx = new Influx({ version: 3, host: "h", database: "db", token: "supersecret" });
+    await influx.send([makeAggregate({ uri: "x", namespace: "app" }, 1)]);
+    const headers = requests[0].options.headers as Record<string, string>;
+    expect(headers["Authorization"]).toBe("Bearer supersecret");
+  });
+
   it("V2: sends Token auth header", async () => {
     const { Influx } = await import("../transport/influx.js");
     const influx = new Influx({
@@ -341,6 +375,13 @@ describe("Influx HTTP protocol selection", () => {
     expect(requests[0].protocol).toBe("https");
   });
 
+  it("V3 defaults to http (self-hosted Core)", async () => {
+    const { Influx } = await import("../transport/influx.js");
+    const influx = new Influx({ version: 3, host: "h", database: "db", token: "t" });
+    await influx.send([makeAggregate({ uri: "x", namespace: "app" }, 1)]);
+    expect(requests[0].protocol).toBe("http");
+  });
+
   it("protocol override works for V2", async () => {
     const { Influx } = await import("../transport/influx.js");
     const influx = new Influx({
@@ -351,6 +392,13 @@ describe("Influx HTTP protocol selection", () => {
       token: "t",
       protocol: "http",
     });
+    await influx.send([makeAggregate({ uri: "x", namespace: "app" }, 1)]);
+    expect(requests[0].protocol).toBe("http");
+  });
+
+  it("protocol override works for V3", async () => {
+    const { Influx } = await import("../transport/influx.js");
+    const influx = new Influx({ version: 3, host: "h", database: "db", token: "t", protocol: "http" });
     await influx.send([makeAggregate({ uri: "x", namespace: "app" }, 1)]);
     expect(requests[0].protocol).toBe("http");
   });

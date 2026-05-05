@@ -14,7 +14,40 @@
 # startup and throws immediately if a referenced variable is not set.
 # ──────────────────────────────────────────────────────────────────────────────
 
-# ── Primary application namespace - InfluxDB v2 (InfluxDB Cloud / OSS 2.x) ──
+# ── Primary application namespace ────────────────────────────────────────────
+# Transporter version alternatives:
+#
+#   version: 1  (InfluxDB OSS 1.x — legacy)
+#     host: influx-legacy.internal
+#     port: 8086          # default
+#     protocol: http      # default
+#     database: app-metrics
+#     retentionPolicy: 90d  # optional
+#     username: "monitor"
+#     password: "${INFLUX_V1_PASSWORD}"
+#
+#   version: 2  (InfluxDB OSS 2.x / Cloud)
+#     host: influxdb.example.com
+#     port: 8086          # default
+#     protocol: https     # default
+#     org: my-org
+#     bucket: app-metrics
+#     token: "${INFLUX_TOKEN}"
+#
+#   version: 3  (InfluxDB 3 Core — self-hosted OSS)
+#     host: localhost
+#     port: 8181          # no default — must be set explicitly for Core
+#     protocol: http      # default; use https in production
+#     database: app-metrics
+#     token: "${INFLUX_TOKEN}"
+#
+#   version: 3  (InfluxDB Cloud Serverless)
+#     host: eu-central-1-1.aws.cloud2.influxdata.com
+#     protocol: https     # override the default http
+#     # port omitted → Node uses 443 for https automatically
+#     database: app-metrics
+#     token: "${INFLUX_TOKEN}"
+#
 - namespace: app
   enabled: true
 
@@ -31,8 +64,8 @@
     # you need independent queues (e.g. separate hosts or rate limits).
     key: influx
     host: influxdb.example.com
-    port: 8086 # default: 8086
-    protocol: https # default: https (v2), http (v1)
+    port: 8086
+    protocol: https
     org: my-org
     bucket: app-metrics
     token: "${INFLUX_TOKEN}"
@@ -105,59 +138,6 @@
       enabled: true
       cache:
         max: 200 # keep up to 200 distinct tag-value combinations
-
-# ── Infrastructure namespace — InfluxDB v1 (InfluxDB OSS 1.x) ────────────────
-- namespace: infra
-  enabled: false # start disabled; enable at runtime with setEnabled()
-
-  tags:
-    env: production
-    team: platform
-
-  transporter:
-    type: influx
-    version: 1
-    key: infra # different key → separate queue from the "app" namespace above
-    host: influx-legacy.internal
-    port: 8086
-    protocol: http
-    database: infrastructure
-    retentionPolicy: 90d # omit to use the database default
-    username: "monitor"
-    password: "${INFLUX_V1_PASSWORD}"
-
-    rateLimit: 5
-    measurementStrategy: namespace # all infra metrics -> one "infra" measurement
-
-    retry:
-      retries: 5
-      minTimeout: 2000
-      maxTimeout: 60000
-      factor: 2
-
-    queue:
-      maxSize: 2000
-      lossInterval: 600000 # 10 min -> less critical, flush less often
-      batchSize: 500
-
-  metrics:
-    - uri: k8s.pod_restarts
-      type: counter
-      interval: 60000
-      reset: true
-      enabled: true
-
-    - uri: k8s.pod_memory_mb
-      type: gauge
-      interval: 30000
-      reset: false
-      enabled: true
-
-    - uri: k8s.node_cpu_pct
-      type: gauge
-      interval: 30000
-      reset: false
-      enabled: true
 
 # ── Example: sharing a transporter across namespaces ─────────────────────────
 # When two namespaces write to the same backend, define the full transporter

@@ -32,7 +32,23 @@ export type InfluxV2Config = {
   token: string;
 };
 
-export type InfluxConfig = (InfluxV1Config | InfluxV2Config) & {
+export type InfluxV3Config = {
+  version: 3;
+  host: string;
+  /**
+   * Port to connect to. When omitted, Node uses the protocol default (80 for
+   * http, 443 for https) — correct for InfluxDB Cloud Serverless. Set to
+   * `8181` for a default InfluxDB 3 Core installation.
+   */
+  port?: number;
+  /** Default: "http" */
+  protocol?: "http" | "https";
+  /** Database name (replaces org + bucket from v2). */
+  database: string;
+  token: string;
+};
+
+export type InfluxConfig = (InfluxV1Config | InfluxV2Config | InfluxV3Config) & {
   /** Transporter key used for IPC routing. Default: "influx". */
   key?: string;
   /** Maximum aggregates sent per second. Default: 10. */
@@ -177,22 +193,28 @@ export class Influx extends Transporter {
   // ── Request options (computed once at construction) ────────────────────────
 
   private buildRequestOptions(): http.RequestOptions {
-    const { host, port = 8086 } = this.config;
+    const { host } = this.config;
+    // v3 omits a default port — Node uses 80/443 based on protocol, which is correct
+    // for Cloud Serverless (https → 443). Core users always specify port: 8181 explicitly.
+    // v1/v2 default to 8086.
+    const port = this.config.port ?? (this.config.version === 3 ? undefined : 8086);
     const path = this.buildPath();
     const headers = this.buildHeaders();
-    return { method: "POST", hostname: host, port, path, headers };
+    return { method: "POST", hostname: host, ...(port !== undefined && { port }), path, headers };
   }
 
   private buildPath(): string {
     const enc = encodeURIComponent;
+    if (this.config.version === 3) {
+      return `/api/v3/write_lp?database=${enc(this.config.database)}&precision=millisecond`;
+    }
     if (this.config.version === 2) {
       const { org, bucket } = this.config;
       return `/api/v2/write?org=${enc(org)}&bucket=${enc(bucket)}&precision=ms`;
-    } else {
-      const { database, retentionPolicy } = this.config;
-      const rp = retentionPolicy ? `&rp=${enc(retentionPolicy)}` : "";
-      return `/write?db=${enc(database)}${rp}&precision=ms`;
     }
+    const { database, retentionPolicy } = this.config;
+    const rp = retentionPolicy ? `&rp=${enc(retentionPolicy)}` : "";
+    return `/write?db=${enc(database)}${rp}&precision=ms`;
   }
 
   private buildHeaders(): http.OutgoingHttpHeaders {
@@ -200,7 +222,9 @@ export class Influx extends Transporter {
       "Content-Type": "text/plain; charset=utf-8",
     };
     if (this.gzip) headers["Content-Encoding"] = "gzip";
-    if (this.config.version === 2) {
+    if (this.config.version === 3) {
+      headers["Authorization"] = `Bearer ${this.config.token}`;
+    } else if (this.config.version === 2) {
       headers["Authorization"] = `Token ${this.config.token}`;
     } else if (this.config.username && this.config.password) {
       const creds = Buffer.from(`${this.config.username}:${this.config.password}`).toString("base64");

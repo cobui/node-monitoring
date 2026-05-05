@@ -11,7 +11,7 @@ export type { Tags, MetricConfig, MetricType, HistogramAggregate } from "./types
 
 // ── Transport config ──────────────────────────────────────────────────────────
 export type { TransporterConfig } from "./transport/factory";
-export type { InfluxConfig } from "./transport/influx";
+export type { InfluxConfig, InfluxV1Config, InfluxV2Config, InfluxV3Config } from "./transport/influx";
 
 // ── Config loader ─────────────────────────────────────────────────────────────
 export { loadConfig } from "./config";

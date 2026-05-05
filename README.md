@@ -165,6 +165,36 @@ transporter:
     lossInterval: 300000 # ms between loss-record flushes (default: 5 min)
 ```
 
+### InfluxDB v3
+
+Works for both InfluxDB 3 Core (self-hosted OSS) and InfluxDB Cloud Serverless. The write endpoint and auth format are identical — only the connection details differ.
+
+**Core (self-hosted):**
+```yaml
+transporter:
+  type: influx
+  version: 3
+  host: localhost
+  port: 8181     # Core default — must be set explicitly
+  protocol: http # default: http — use https in production
+  database: app-metrics
+  token: "YOUR_TOKEN"
+```
+
+**Cloud Serverless:**
+```yaml
+transporter:
+  type: influx
+  version: 3
+  host: eu-central-1-1.aws.cloud2.influxdata.com
+  protocol: https # default: http, so set this explicitly for Cloud
+  # port omitted → Node uses 443 for https automatically
+  database: app-metrics
+  token: "YOUR_TOKEN"
+```
+
+`measurementStrategy`, `includeNamespaceTag`, `rateLimit`, `retry`, and `queue` apply to v3 in the same way as v2.
+
 ### InfluxDB v1 (InfluxDB OSS 1.x)
 
 ```yaml
